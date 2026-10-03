@@ -9,6 +9,7 @@ namespace SeededRun
         [HarmonyPostfix]
         private static void Postfix(SaveDataManager __instance)
         {
+            SeededSaveData.ApplyConfiguredSeedToExistingSave(__instance);
             SeededSaveData.ValidateAfterLoad(__instance);
         }
     }

@@ -9,7 +9,7 @@ namespace SeededRun
         private const float ScreenMargin = 20f;
         private const float TextAreaWidth = 600f;
         private const float TextAreaHeight = 100f;
-        private const int FontSize = 24;
+        private const int FontSize = 10;
         private const int OverlaySortingOrder = 1000;
 
         private static GameObject _overlayObject;

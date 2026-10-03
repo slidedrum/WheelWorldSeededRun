@@ -1,15 +1,18 @@
 using System;
+using Il2CppSystem.Collections.Generic;
 
 namespace SeededRun
 {
     internal static class SeededSaveData
     {
         private const string SeedIdText = "70b84eb8-df3b-47e1-91dd-ea0ecf49c538";
+        private const string SeedTextIdText = "d36eb23f-ac15-40fa-8022-cb7ca90656e7";
         private const string PlaytimeCheckpointIdText = "b9dc4682-1cc3-4ec3-b38f-d856ef732917";
         private const string InvalidSeedIdText = "1562971a-6c6f-44bd-8baf-62a52ec8ce7f";
         private const double PlaytimeToleranceSeconds = 1.0;
 
         private static readonly GlobalID SeedId = ParseId(SeedIdText);
+        private static readonly GlobalID SeedTextId = ParseId(SeedTextIdText);
         private static readonly GlobalID PlaytimeCheckpointId = ParseId(PlaytimeCheckpointIdText);
         private static readonly GlobalID InvalidSeedId = ParseId(InvalidSeedIdText);
 
@@ -37,18 +40,19 @@ namespace SeededRun
 
             if (saveData?.gameStateLongInts != null)
             {
-                if (IsInvalid(saveData))
-                    return "INVALID";
-
                 if (saveData.gameStateLongInts.TryGetValue(SeedId, out long savedSeed))
-                    return unchecked((int)savedSeed).ToString();
+                {
+                    int integerSeed = unchecked((int)savedSeed);
+                    string seedText = GetSavedSeedText(saveData, integerSeed);
+                    return IsInvalid(saveData) ? $"{seedText} (INVALID)" : seedText;
+                }
             }
 
             if (manager == null || !manager.DataWasSavedToDisk)
             {
                 string configuredSeed = Plugin.PartDropSeedConfig.Value;
-                if (SeedParser.TryConvertToInt32(configuredSeed, out int seed))
-                    return seed.ToString();
+                if (SeedParser.TryConvertToInt32(configuredSeed, out int _))
+                    return configuredSeed;
             }
 
             return "UNSEEDED";
@@ -67,11 +71,42 @@ namespace SeededRun
                 return false;
 
             saveData.gameStateLongInts.Add(SeedId, seed);
+            SaveSeedText(saveData, configuredSeed);
             RecordPlaytimeCheckpoint(saveData);
 
             Plugin.PluginLog.LogInfo($"Attached part-drop seed \"{configuredSeed}\" to the new save (internal seed: {seed}).");
 
             return true;
+        }
+
+        internal static void ApplyConfiguredSeedToExistingSave(SaveDataManager manager)
+        {
+            SaveData_v3_latest saveData = manager?.Data;
+            if (saveData?.gameStateLongInts == null || !Plugin.UseOnExistingSaveConfig.Value)
+                return;
+
+            string configuredSeed = Plugin.PartDropSeedConfig.Value;
+            if (!SeedParser.TryConvertToInt32(configuredSeed, out int integerSeed))
+                return;
+
+            bool hasSavedSeed = saveData.gameStateLongInts.TryGetValue(SeedId, out long savedSeed);
+            if (hasSavedSeed && unchecked((int)savedSeed) == integerSeed)
+            {
+                if (!TryGetSavedSeedText(saveData, out string savedText) || savedText != configuredSeed)
+                {
+                    SaveSeedText(saveData, configuredSeed);
+                    RequestSave(manager);
+                }
+
+                return;
+            }
+
+            saveData.gameStateLongInts[SeedId] = integerSeed;
+            saveData.gameStateLongInts[InvalidSeedId] = 1;
+            SaveSeedText(saveData, configuredSeed);
+            RecordPlaytimeCheckpoint(saveData);
+            RequestSave(manager);
+            Plugin.PluginLog.LogWarning($"Applied configured seed \"{configuredSeed}\" to an existing save. This save is permanently INVALID.");
         }
 
         internal static void RefreshPlaytimeCheckpoint(SaveDataManager manager)
@@ -119,6 +154,44 @@ namespace SeededRun
         {
             saveData.gameStateLongInts[PlaytimeCheckpointId] =
                 BitConverter.DoubleToInt64Bits(saveData.allPlaytimeSecs);
+        }
+
+        private static string GetSavedSeedText(SaveData_v3_latest saveData, int integerSeed)
+        {
+            if (TryGetSavedSeedText(saveData, out string savedText))
+                return savedText;
+
+            string configuredSeed = Plugin.PartDropSeedConfig.Value;
+            if (SeedParser.TryConvertToInt32(configuredSeed, out int configuredIntegerSeed) && configuredIntegerSeed == integerSeed)
+                return configuredSeed;
+
+            return "UNKNOWN SEED";
+        }
+
+        private static bool TryGetSavedSeedText(SaveData_v3_latest saveData, out string seedText)
+        {
+            seedText = null;
+
+            if (saveData.completedChallengeSecondaryObjectives == null)
+                return false;
+
+            if (!saveData.completedChallengeSecondaryObjectives.TryGetValue(SeedTextId, out List<string> values) || values == null || values.Count == 0)
+                return false;
+
+            seedText = values[0];
+            return !string.IsNullOrEmpty(seedText);
+        }
+
+        private static void SaveSeedText(SaveData_v3_latest saveData, string seedText)
+        {
+            if (!saveData.completedChallengeSecondaryObjectives.TryGetValue(SeedTextId, out List<string> values) || values == null)
+            {
+                values = new List<string>();
+                saveData.completedChallengeSecondaryObjectives.Add(SeedTextId, values);
+            }
+
+            values.Clear();
+            values.Add(seedText);
         }
 
         private static bool PlaytimeMatchesCheckpoint(double playtime, double checkpoint)

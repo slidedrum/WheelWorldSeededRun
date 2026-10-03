@@ -11,11 +11,13 @@ namespace SeededRun
     {
         internal static ManualLogSource PluginLog { get; private set; }
         internal static ConfigEntry<string> PartDropSeedConfig { get; private set; }
+        internal static ConfigEntry<bool> UseOnExistingSaveConfig { get; private set; }
 
         public override void Load()
         {
             PluginLog = Log;
-            PartDropSeedConfig = Config.Bind("Seed", "PartDropSeed", "", "Seed assigned to new saves. Leave empty to create an unseeded save.");
+            PartDropSeedConfig = Config.Bind("Seed", "PartDropSeed", "", "Leave empty to create an unseeded save.");
+            UseOnExistingSaveConfig = Config.Bind("Seed", "UseOnExistingSave", false, "Force seed on current save.");
 
             new Harmony(MyPluginInfo.PLUGIN_GUID).PatchAll();
             AddComponent<SeedWatermarkBehaviour>();
