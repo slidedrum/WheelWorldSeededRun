@@ -53,12 +53,14 @@ namespace SeededRun
                 string configuredSeed = Plugin.PartDropSeedConfig.Value;
                 if (SeedParser.TryConvertToInt32(configuredSeed, out int _))
                     return configuredSeed;
+
+                return "RANDOM";
             }
 
             return "UNSEEDED";
         }
 
-        internal static bool AddConfiguredSeed(SaveData_v3_latest saveData)
+        internal static bool AddSeedToNewSave(SaveData_v3_latest saveData)
         {
             if (saveData?.gameStateLongInts == null)
                 return false;
@@ -66,31 +68,38 @@ namespace SeededRun
             if (saveData.gameStateLongInts.ContainsKey(SeedId))
                 return false;
 
-            string configuredSeed = Plugin.PartDropSeedConfig.Value;
-            if (!SeedParser.TryConvertToInt32(configuredSeed, out int seed))
-                return false;
+            string seedText = GetConfiguredSeedOrCreateRandom();
+            SeedParser.TryConvertToInt32(seedText, out int seed);
 
             saveData.gameStateLongInts.Add(SeedId, seed);
-            SaveSeedText(saveData, configuredSeed);
+            SaveSeedText(saveData, seedText);
             RecordPlaytimeCheckpoint(saveData);
 
-            Plugin.PluginLog.LogInfo($"Attached part-drop seed \"{configuredSeed}\" to the new save (internal seed: {seed}).");
+            Plugin.PluginLog.LogInfo($"Attached part-drop seed \"{seedText}\" to the new save (internal seed: {seed}).");
 
             return true;
         }
 
-        internal static void ApplyConfiguredSeedToExistingSave(SaveDataManager manager)
+        internal static void ApplySeedPolicyToExistingSave(SaveDataManager manager)
         {
             SaveData_v3_latest saveData = manager?.Data;
-            if (saveData?.gameStateLongInts == null || !Plugin.UseOnExistingSaveConfig.Value)
-                return;
-
-            string configuredSeed = Plugin.PartDropSeedConfig.Value;
-            if (!SeedParser.TryConvertToInt32(configuredSeed, out int integerSeed))
+            if (saveData?.gameStateLongInts == null)
                 return;
 
             bool hasSavedSeed = saveData.gameStateLongInts.TryGetValue(SeedId, out long savedSeed);
-            if (hasSavedSeed && unchecked((int)savedSeed) == integerSeed)
+            string configuredSeed = Plugin.PartDropSeedConfig.Value;
+
+            if (!hasSavedSeed)
+            {
+                string seedText = Plugin.UseOnExistingSaveConfig.Value && !string.IsNullOrEmpty(configuredSeed) ? configuredSeed : CreateRandomSeed();
+                ApplySeedToExistingSave(manager, saveData, seedText);
+                return;
+            }
+
+            if (!Plugin.UseOnExistingSaveConfig.Value || !SeedParser.TryConvertToInt32(configuredSeed, out int integerSeed))
+                return;
+
+            if (unchecked((int)savedSeed) == integerSeed)
             {
                 if (!TryGetSavedSeedText(saveData, out string savedText) || savedText != configuredSeed)
                 {
@@ -101,12 +110,18 @@ namespace SeededRun
                 return;
             }
 
+            ApplySeedToExistingSave(manager, saveData, configuredSeed);
+        }
+
+        private static void ApplySeedToExistingSave(SaveDataManager manager, SaveData_v3_latest saveData, string seedText)
+        {
+            SeedParser.TryConvertToInt32(seedText, out int integerSeed);
             saveData.gameStateLongInts[SeedId] = integerSeed;
             saveData.gameStateLongInts[InvalidSeedId] = 1;
-            SaveSeedText(saveData, configuredSeed);
+            SaveSeedText(saveData, seedText);
             RecordPlaytimeCheckpoint(saveData);
             RequestSave(manager);
-            Plugin.PluginLog.LogWarning($"Applied configured seed \"{configuredSeed}\" to an existing save. This save is permanently INVALID.");
+            Plugin.PluginLog.LogWarning($"Applied seed \"{seedText}\" to an existing save. This save is permanently INVALID.");
         }
 
         internal static void RefreshPlaytimeCheckpoint(SaveDataManager manager)
@@ -166,6 +181,17 @@ namespace SeededRun
                 return configuredSeed;
 
             return "UNKNOWN SEED";
+        }
+
+        private static string GetConfiguredSeedOrCreateRandom()
+        {
+            string configuredSeed = Plugin.PartDropSeedConfig.Value;
+            return string.IsNullOrEmpty(configuredSeed) ? CreateRandomSeed() : configuredSeed;
+        }
+
+        private static string CreateRandomSeed()
+        {
+            return Guid.NewGuid().ToString("N");
         }
 
         private static bool TryGetSavedSeedText(SaveData_v3_latest saveData, out string seedText)

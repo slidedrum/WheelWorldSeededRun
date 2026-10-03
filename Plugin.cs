@@ -16,7 +16,7 @@ namespace SeededRun
         public override void Load()
         {
             PluginLog = Log;
-            PartDropSeedConfig = Config.Bind("Seed", "PartDropSeed", "", "Leave empty to create an unseeded save.");
+            PartDropSeedConfig = Config.Bind("Seed", "PartDropSeed", "", "Leave empty to generate a random seed for each new save.");
             UseOnExistingSaveConfig = Config.Bind("Seed", "UseOnExistingSave", false, "Force seed on current save.");
 
             new Harmony(MyPluginInfo.PLUGIN_GUID).PatchAll();
@@ -30,7 +30,7 @@ namespace SeededRun
             }
             else
             {
-                PluginLog.LogInfo("No part-drop seed is configured for future new saves.");
+                PluginLog.LogInfo("A random part-drop seed will be generated for each future new save.");
             }
         }
     }

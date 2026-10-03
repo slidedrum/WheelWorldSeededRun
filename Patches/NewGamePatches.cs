@@ -18,7 +18,7 @@ namespace SeededRun
                 return;
             }
 
-            if (SeededSaveData.AddConfiguredSeed(manager.Data))
+            if (SeededSaveData.AddSeedToNewSave(manager.Data))
                 manager.RequestSave_BecauseSomeCriticalProgressDataWasUpdated(manager);
         }
     }
@@ -38,7 +38,7 @@ namespace SeededRun
             if (!__state)
                 return;
 
-            if (SeededSaveData.AddConfiguredSeed(__instance.Data))
+            if (SeededSaveData.AddSeedToNewSave(__instance.Data))
                 __instance.RequestSave_BecauseSomeCriticalProgressDataWasUpdated(__instance);
         }
     }
