@@ -20,7 +20,7 @@ namespace SeededRun
             SaveData_v3_latest saveData =
                 MesshofBehaviourSingleton<SaveDataManager>.Instance?.Data;
 
-            if (saveData?.gameStateLongInts == null || IsInvalid(saveData))
+            if (saveData?.gameStateLongInts == null)
                 return false;
 
             if (!saveData.gameStateLongInts.TryGetValue(SeedId, out long savedSeed))
@@ -28,6 +28,30 @@ namespace SeededRun
 
             seed = unchecked((int)savedSeed);
             return true;
+        }
+
+        internal static string GetDisplaySeed()
+        {
+            SaveDataManager manager = MesshofBehaviourSingleton<SaveDataManager>.Instance;
+            SaveData_v3_latest saveData = manager?.Data;
+
+            if (saveData?.gameStateLongInts != null)
+            {
+                if (IsInvalid(saveData))
+                    return "INVALID";
+
+                if (saveData.gameStateLongInts.TryGetValue(SeedId, out long savedSeed))
+                    return unchecked((int)savedSeed).ToString();
+            }
+
+            if (manager == null || !manager.DataWasSavedToDisk)
+            {
+                string configuredSeed = Plugin.PartDropSeedConfig.Value;
+                if (SeedParser.TryConvertToInt32(configuredSeed, out int seed))
+                    return seed.ToString();
+            }
+
+            return "UNSEEDED";
         }
 
         internal static bool AddConfiguredSeed(SaveData_v3_latest saveData)
@@ -50,7 +74,7 @@ namespace SeededRun
             return true;
         }
 
-        internal static void RecordPlaytimeCheckpointBeforeSave(SaveDataManager manager)
+        internal static void RefreshPlaytimeCheckpoint(SaveDataManager manager)
         {
             SaveData_v3_latest saveData = manager?.Data;
             if (!HasValidSeed(saveData))
@@ -67,7 +91,7 @@ namespace SeededRun
 
             if (!saveData.gameStateLongInts.TryGetValue(PlaytimeCheckpointId, out long checkpointBits))
             {
-                MigrateMissingCheckpoint(manager, saveData);
+                Invalidate(manager, saveData, "its playtime checkpoint is missing");
                 return;
             }
 
@@ -75,7 +99,7 @@ namespace SeededRun
             if (PlaytimeMatchesCheckpoint(saveData.allPlaytimeSecs, checkpoint))
                 return;
 
-            Invalidate(manager, saveData, checkpoint);
+            Invalidate(manager, saveData, $"its playtime ({saveData.allPlaytimeSecs:F3}s) does not match SeededRun's checkpoint ({checkpoint:F3}s)");
         }
 
         private static bool HasValidSeed(SaveData_v3_latest saveData)
@@ -110,19 +134,11 @@ namespace SeededRun
             return Math.Abs(playtime - checkpoint) <= PlaytimeToleranceSeconds;
         }
 
-        private static void MigrateMissingCheckpoint(SaveDataManager manager, SaveData_v3_latest saveData)
-        {
-            RecordPlaytimeCheckpoint(saveData);
-            RequestSave(manager);
-            Plugin.PluginLog.LogWarning("Seeded save had no playtime checkpoint; created its initial checkpoint.");
-        }
-
-        private static void Invalidate(SaveDataManager manager, SaveData_v3_latest saveData, double checkpoint)
+        private static void Invalidate(SaveDataManager manager, SaveData_v3_latest saveData, string reason)
         {
             saveData.gameStateLongInts[InvalidSeedId] = 1;
             RequestSave(manager);
-
-            Plugin.PluginLog.LogError($"Seeded save is invalid: its playtime ({saveData.allPlaytimeSecs:F3}s) does not match SeededRun's checkpoint ({checkpoint:F3}s). Seeded drops are permanently disabled for this save.");
+            Plugin.PluginLog.LogError($"Seeded save is invalid because {reason}. The saved seed remains active, but this save will continue to display INVALID.");
         }
 
         private static void RequestSave(SaveDataManager manager)

@@ -13,14 +13,14 @@ namespace SeededRun
         }
     }
 
-    // This private method runs immediately before the game serializes save data.
-    [HarmonyPatch(typeof(SaveDataFuncs), "TrackSavedToDisk")]
-    internal static class RecordPlaytimeCheckpointPatch
+    // The mod keeps this synchronized in memory so every later save captures it.
+    [HarmonyPatch(typeof(SaveDataManager), nameof(SaveDataManager.AfterAnimatorTick))]
+    internal static class RefreshPlaytimeCheckpointPatch
     {
-        [HarmonyPrefix]
-        private static void Prefix(SaveDataManager manager)
+        [HarmonyPostfix]
+        private static void Postfix(SaveDataManager __instance)
         {
-            SeededSaveData.RecordPlaytimeCheckpointBeforeSave(manager);
+            SeededSaveData.RefreshPlaytimeCheckpoint(__instance);
         }
     }
 }

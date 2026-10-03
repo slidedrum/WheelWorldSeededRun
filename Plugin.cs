@@ -18,6 +18,7 @@ namespace SeededRun
             PartDropSeedConfig = Config.Bind("Seed", "PartDropSeed", "", "Seed assigned to new saves. Leave empty to create an unseeded save.");
 
             new Harmony(MyPluginInfo.PLUGIN_GUID).PatchAll();
+            AddComponent<SeedWatermarkBehaviour>();
 
             PluginLog.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded.");
 
